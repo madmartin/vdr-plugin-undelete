@@ -351,6 +351,10 @@ eOSState cMenuDeletedRecordings::Undelete(void)
               deletedRecordings->Del(recording);
 #else
               DeletedRecordings.Del(recording);
+#warning test:
+              //DeletedRecordings.Del(recording,false);
+	      //Recordings.Add(recording);
+	      //no update, just TouchUpdate ?
 #endif
 #if VDRVERSNUM < 10333
               Recordings.TriggerUpdate();
@@ -442,7 +446,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
 
 #include "i18n.h"
 
-static const char *VERSION        = "0.2.0";
+static const char *VERSION        = "0.2.1";
 static const char *DESCRIPTION    = "Undelete recordings";
 static const char *MAINMENUENTRY  = "Undelete recordings";
 

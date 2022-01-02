@@ -21,3 +21,8 @@ VDR Plugin 'undelete' Revision History
 - Using static DeletedRecordings from recording.c instead of own copy.
 - Deleted recordings will not be removed by vdr while plugin menu is active.
 - Menu entry is hidden if there are no deleted recordings.
+
+2006-04-30: Version 0.2.1
+
+- Updated for VDR 1.4.0
+
