@@ -39,8 +39,13 @@ VDR Plugin 'undelete' Revision History
 
 2008-01-01: Version 0.4.6
 
-- Italian translations (Thanks to Gringo)
+- Italian translations (Thanks to Diego Pierotto)
 
-2008-02-20: Version 0.4.6
+2008-02-20: Version 0.4.7
 
 - Fixed compilation with vdr-1.5.15
+
+2017-01-11: Version 2.0.0
+
+- Support for vdr 2.0 - 2.2
+- Fixed compilation with recent gcc/glibc

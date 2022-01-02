@@ -3,7 +3,7 @@
  *
  * See the README file for copyright information and how to reach the author.
  *
- * Italian translations provided by Gringo <vdr-italian@tiscali.it>
+ * Italian translations provided by Diego Pierotto
  *
  */
 

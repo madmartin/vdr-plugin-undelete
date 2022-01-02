@@ -23,17 +23,25 @@ static bool UndeleteRecording(cRecording *Recording)
 {
   bool result = true;
   cString NewName = Recording->FileName();
-  char *ext = strrchr(NewName, '.');
+  const char *ext = strrchr(NewName, '.');
   if (strcmp(ext, DELEXT) == 0) {
-     strncpy(ext, RECEXT, strlen(ext));
+     strncpy((char*)ext, RECEXT, strlen(ext));
      while (access(NewName, F_OK) == 0) {
        // the new name already exists
+#if VDRVERSNUM >= 20102
+       cString p = cVideoDirectory::PrefixVideoFileName(NewName, '!');
+#else
        cString p = PrefixVideoFileName(NewName, '!');
+#endif
        if (*p)
 	 NewName = p;
      }
      isyslog("restoring deleted recording %s", Recording->FileName());
+#if VDRVERSNUM >= 20102
+     result = cVideoDirectory::RenameVideoFile(Recording->FileName(), NewName);
+#else
      result = RenameVideoFile(Recording->FileName(), NewName);
+#endif
      }
   return result;
 }
@@ -43,72 +51,53 @@ static bool UndeleteRecording(cRecording *Recording)
 // --- cMenuRecordingItem ----------------------------------------------------
 //
 
-// (copied from vdr 1.3.23...1.4.5 menu.c)
-class cMenuRecordingItem : public cOsdItem {
+// (copied from vdr 2.0.2)
+
+class cMyMenuRecordingItem : public cOsdItem {
  private:
-  char *fileName;
+  cRecording *recording;
+  int level;
   char *name;
   int totalEntries, newEntries;
  public:
-  cMenuRecordingItem(cRecording *Recording, int Level);
-  ~cMenuRecordingItem();
+  cMyMenuRecordingItem(cRecording *Recording, int Level);
+  ~cMyMenuRecordingItem();
   void IncrementCounter(bool New);
   const char *Name(void) { return name; }
-  const char *FileName(void) { return fileName; }
+  cRecording *Recording(void) { return recording; }
   bool IsDirectory(void) { return name != NULL; }
+  virtual void SetMenuItem(cSkinDisplayMenu *DisplayMenu, int Index, bool Current, bool Selectable);
 };
 
-
-//
-// --- cMenuRecording -------------------------------------------------------
-//
-
-// (copied from vdr 1.3.42...1.4.5 menu.c)
-class cMenuRecording : public cOsdMenu {
-private:
-  const cRecording *recording;
-  bool withButtons;
-public:
-  cMenuRecording(const cRecording *Recording, bool WithButtons = false);
-  virtual void Display(void);
-  virtual eOSState ProcessKey(eKeys Key);
-};
-
-//
-// --- cMenuDeletedRecording -------------------------------------------------
-//
-
-// override help keys and kYellow action
-class cMenuDeletedRecording : public cMenuRecording {
-public:
-  cMenuDeletedRecording(const cRecording *Recording);
-  virtual eOSState ProcessKey(eKeys Key);
-};
-
-
-cMenuDeletedRecording::cMenuDeletedRecording(const cRecording *Recording) :
-  cMenuRecording(Recording)
+cMyMenuRecordingItem::cMyMenuRecordingItem(cRecording *Recording, int Level)
 {
-  if (Recording)
-     SetHelp(tr("Button$Undelete"), NULL, tr("Button$Destroy"));
+  recording = Recording;
+  level = Level;
+  name = NULL;
+  totalEntries = newEntries = 0;
+  SetText(Recording->Title('\t', true, Level));
+  if (*Text() == '\t')
+    name = strdup(Text() + 2); // 'Text() + 2' to skip the two '\t'
 }
 
-eOSState cMenuDeletedRecording::ProcessKey(eKeys Key)
+cMyMenuRecordingItem::~cMyMenuRecordingItem()
 {
-  eOSState state = cMenuRecording::ProcessKey(Key);
-
-  if (state == osUnknown) {
-     switch (Key) {
-       case kYellow: 
-                     // continue with osBack to close the info menu and process the key
-       case kOk:     return osBack;
-       default: break;
-       }
-     }
-
-  return state;
+  free(name);
 }
 
+void cMyMenuRecordingItem::IncrementCounter(bool New)
+{
+  totalEntries++;
+  if (New)
+    newEntries++;
+  SetText(cString::sprintf("%d\t\t%d\t%s", totalEntries, newEntries, name));
+}
+
+void cMyMenuRecordingItem::SetMenuItem(cSkinDisplayMenu *DisplayMenu, int Index, bool Current, bool Selectable)
+{
+  if (!DisplayMenu->SetItemRecording(recording, Index, Current, Selectable, level, totalEntries, newEntries))
+    DisplayMenu->SetItem(Text(), Index, Current, Selectable);
+}
 
 //
 // --- cMenuDeletedRecordings ------------------------------------------------
@@ -136,7 +125,7 @@ class cMenuDeletedRecordings : public /*cMenuRecordings*/ cMenuSetupPage {
     eOSState Info(void);
     //eOSState Commands(eKeys Key = kNone);
  protected:
-    cRecording *GetRecording(cMenuRecordingItem *Item);
+    cRecording *GetRecording(cMyMenuRecordingItem *Item);
  public:
     cMenuDeletedRecordings(const char *Base = NULL, int Level = 0, bool OpenSubMenus = false);
     ~cMenuDeletedRecordings();
@@ -173,16 +162,18 @@ cMenuDeletedRecordings::~cMenuDeletedRecordings()
 
 void cMenuDeletedRecordings::SetHelpKeys(void)
 {
-  cMenuRecordingItem *ri = (cMenuRecordingItem *)Get(Current());
+  cMyMenuRecordingItem *ri = (cMyMenuRecordingItem *)Get(Current());
   int NewHelpKeys = 0;
   if (ri) {
      if (ri->IsDirectory())
         NewHelpKeys = 1;
      else {
         NewHelpKeys = 2;
+#if 0
         cRecording *recording = GetRecording(ri);
         if (recording && recording->Info()->Title())
            NewHelpKeys = 3;
+#endif
         }
      }
 
@@ -196,14 +187,14 @@ void cMenuDeletedRecordings::SetHelpKeys(void)
 
 void cMenuDeletedRecordings::Set(bool Refresh)
 {
-  cMenuRecordingItem *LastItem = NULL;
+  cMyMenuRecordingItem *LastItem = NULL;
   char *LastItemText = NULL;
   cThreadLock RecordingsLock(&DeletedRecordings);
   Clear();
   DeletedRecordings.Sort();
   for (cRecording *recording = DeletedRecordings.First(); recording; recording = DeletedRecordings.Next(recording)) {
       if (!base || (strstr(recording->Name(), base) == recording->Name() && recording->Name()[strlen(base)] == '~')) {
-         cMenuRecordingItem *Item = new cMenuRecordingItem(recording, level);
+         cMyMenuRecordingItem *Item = new cMyMenuRecordingItem(recording, level);
          if (*Item->Text() && (!LastItem || strcmp(Item->Text(), LastItemText) != 0)) {
             Add(Item);
             LastItem = Item;
@@ -223,22 +214,19 @@ void cMenuDeletedRecordings::Set(bool Refresh)
      Display();
 }
 
-cRecording *cMenuDeletedRecordings::GetRecording(cMenuRecordingItem *Item)
+cRecording *cMenuDeletedRecordings::GetRecording(cMyMenuRecordingItem *Item)
 {
-  cRecording *recording = DeletedRecordings.GetByName(Item->FileName());
-  if (!recording)
-     Skins.Message(mtError, tr("Error while accessing recording!"));
-  return recording;
+  return Item->Recording();
 }
 
 bool cMenuDeletedRecordings::Open(bool OpenSubMenus)
 {
-  cMenuRecordingItem *ri = (cMenuRecordingItem *)Get(Current());
+  cMyMenuRecordingItem *ri = (cMyMenuRecordingItem *)Get(Current());
   if (ri && ri->IsDirectory()) {
      const char *t = ri->Name();
      char *buffer = NULL;
      if (base) {
-        asprintf(&buffer, "%s~%s", base, t);
+       if (asprintf(&buffer, "%s~%s", base, t)) ;
         t = buffer;
         }
      AddSubMenu(new cMenuDeletedRecordings(t, level + 1, OpenSubMenus));
@@ -250,20 +238,22 @@ bool cMenuDeletedRecordings::Open(bool OpenSubMenus)
 
 eOSState cMenuDeletedRecordings::Info(void)
 {
+#if 0
   if (HasSubMenu() || Count() == 0)
      return osContinue;
-  cMenuRecordingItem *ri = (cMenuRecordingItem *)Get(Current());
+  cMyMenuRecordingItem *ri = (cMyMenuRecordingItem *)Get(Current());
   if (ri && !ri->IsDirectory()) {
      cRecording *recording = GetRecording(ri);
      if (recording && recording->Info()->Title())
         return AddSubMenu(new cMenuRecording(recording, true));
      }
+#endif
   return osContinue;
 }
 
 eOSState cMenuDeletedRecordings::Undelete(void)
 {
-  cMenuRecordingItem *ri = (cMenuRecordingItem *)Get(Current());
+  cMyMenuRecordingItem *ri = (cMyMenuRecordingItem *)Get(Current());
   if (ri) {
      if (ri->IsDirectory()) {
         Open();
@@ -280,8 +270,13 @@ eOSState cMenuDeletedRecordings::Undelete(void)
            if (UndeleteRecording(recording)) {
               cOsdMenu::Del(Current());
               DeletedRecordings.Del(recording);
+#if VDRVERSNUM >= 20301
+              cRecordings::TouchUpdate();
+              cRecordings::Update();
+#else
               Recordings.TouchUpdate();
               Recordings.Update();
+#endif
               Display();
               if (!Count())
                  return osBack;
@@ -298,7 +293,7 @@ eOSState cMenuDeletedRecordings::Remove(void)
 {
   if (HasSubMenu() || Count() == 0)
      return osContinue;
-  cMenuRecordingItem *ri = (cMenuRecordingItem *)Get(Current());
+  cMyMenuRecordingItem *ri = (cMyMenuRecordingItem *)Get(Current());
   if (ri && !ri->IsDirectory()) {
      if (Interface->Confirm(tr("Delete recording?"))) {
         cRecording *recording = GetRecording(ri);
@@ -326,7 +321,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
   if (state == osUnknown) {
      switch (Key) {
        case kOk:     {
-                       cMenuRecordingItem *ri = (cMenuRecordingItem *)Get(Current());
+                       cMyMenuRecordingItem *ri = (cMyMenuRecordingItem *)Get(Current());
 		       if(ri->IsDirectory()) {
 			 Open();
 			 return osContinue;
@@ -360,9 +355,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
 
 #include <vdr/plugin.h>
 
-#include "i18n.h"
-
-static const char *VERSION        = "0.4.7";
+static const char *VERSION        = "2.0.0";
 static const char *DESCRIPTION    = "Undelete recordings";
 static const char *MAINMENUENTRY  = "Undelete recordings";
 
@@ -397,7 +390,6 @@ cPluginUndelete::cPluginUndelete(void)
 
 bool cPluginUndelete::Initialize(void) 
 {
-  RegisterI18n(Phrases);
   return true;
 }
 
