@@ -3,6 +3,8 @@
  *
  * See the README file for copyright information and how to reach the author.
  *
+ * Italian translations provided by Gringo <vdr-italian@tiscali.it>
+ *
  */
 
 #include <vdr/config.h>
@@ -13,7 +15,7 @@ const tI18nPhrase Phrases[] = {
     "Undelete recordings", // English
     "", // Deutsch
     "", // Slovenski
-    "", // Italiano
+    "Recupera registrazioni", // Italiano
     "", // Nederlands
     "", // Português
     "", // Français
@@ -37,7 +39,7 @@ const tI18nPhrase Phrases[] = {
     "Button$Undelete", // English
     "", // Deutsch
     "", // Slovenski
-    "", // Italiano
+    "Recupera", // Italiano
     "", // Nederlands
     "", // Português
     "", // Français
@@ -61,7 +63,7 @@ const tI18nPhrase Phrases[] = {
     "Button$Destroy", // English
     "", // Deutsch
     "", // Slovenski
-    "", // Italiano
+    "Distruggi", // Italiano
     "", // Nederlands
     "", // Português
     "", // Français
@@ -85,7 +87,7 @@ const tI18nPhrase Phrases[] = {
     "Error while restoring recording!", // English
     "", // Deutsch
     "", // Slovenski
-    "", // Italiano
+    "Errore durante recupero registrazione!", // Italiano
     "", // Nederlands
     "", // Português
     "", // Français
@@ -109,7 +111,7 @@ const tI18nPhrase Phrases[] = {
     "Restore recording?", // English
     "", // Deutsch
     "", // Slovenski
-    "", // Italiano
+    "Recuperare registrazione?", // Italiano
     "", // Nederlands
     "", // Português
     "", // Français
@@ -133,7 +135,7 @@ const tI18nPhrase Phrases[] = {
     "Deleted Recordings", // English
     "", // Deutsch
     "", // Slovenski
-    "", // Italiano
+    "Registrazioni cancellate", // Italiano
     "", // Nederlands
     "", // Português
     "", // Français

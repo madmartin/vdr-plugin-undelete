@@ -36,3 +36,7 @@ VDR Plugin 'undelete' Revision History
 - Dropped support for vdr < 1.4.0
 - Fixed "too many" subdirectories problem
 - Fixed segfault when leaving menu
+
+2008-01-01: Version 0.4.6
+
+- Italian translations (Thanks to Gringo)

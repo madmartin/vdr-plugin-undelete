@@ -362,7 +362,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
 
 #include "i18n.h"
 
-static const char *VERSION        = "0.4.5";
+static const char *VERSION        = "0.4.6";
 static const char *DESCRIPTION    = "Undelete recordings";
 static const char *MAINMENUENTRY  = "Undelete recordings";
 
