@@ -49,3 +49,7 @@ VDR Plugin 'undelete' Revision History
 
 - Support for vdr 2.0 - 2.2
 - Fixed compilation with recent gcc/glibc
+
+2017-01-12: Version 2.3.1pre1
+
+- Support for vdr-2.3.1

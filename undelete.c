@@ -124,6 +124,10 @@ class cMenuDeletedRecordings : public /*cMenuRecordings*/ cMenuSetupPage {
     //eOSState Delete(void);
     eOSState Info(void);
     //eOSState Commands(eKeys Key = kNone);
+#if VDRVERSNUM >= 20301
+    cStateKey recordingsStateKey;
+#endif
+
  protected:
     cRecording *GetRecording(cMyMenuRecordingItem *Item);
  public:
@@ -142,7 +146,9 @@ cMenuDeletedRecordings::cMenuDeletedRecordings(const char *Base, int Level, bool
 
   base = Base ? strdup(Base) : NULL;
   level = Setup.RecordingDirs ? Level : -1;
+#if VDRVERSNUM < 20301
   DeletedRecordings.StateChanged(recordingsState); // just to get the current state
+#endif
   helpKeys = -1;
   Display(); // this keeps the higher level menus from showing up briefly when pressing 'Back' during replay
   Set();
@@ -189,7 +195,15 @@ void cMenuDeletedRecordings::Set(bool Refresh)
 {
   cMyMenuRecordingItem *LastItem = NULL;
   char *LastItemText = NULL;
+#if VDRVERSNUM >= 20301
+  cRecordings *pDeletedRecordings = cRecordings::GetDeletedRecordingsWrite(recordingsStateKey); // write access is necessary for sorting!
+  if (!pDeletedRecordings)
+    return;
+  cRecordings& DeletedRecordings = *pDeletedRecordings;
+#else
   cThreadLock RecordingsLock(&DeletedRecordings);
+#endif
+
   Clear();
   DeletedRecordings.Sort();
   for (cRecording *recording = DeletedRecordings.First(); recording; recording = DeletedRecordings.Next(recording)) {
@@ -209,6 +223,9 @@ void cMenuDeletedRecordings::Set(bool Refresh)
             }
          }
       }
+#if VDRVERSNUM >= 20301
+  recordingsStateKey.Remove(false);
+#endif
   free(LastItemText);
   if (Refresh)
      Display();
@@ -269,11 +286,19 @@ eOSState cMenuDeletedRecordings::Undelete(void)
         if (recording) {
            if (UndeleteRecording(recording)) {
               cOsdMenu::Del(Current());
-              DeletedRecordings.Del(recording);
 #if VDRVERSNUM >= 20301
-              cRecordings::TouchUpdate();
-              cRecordings::Update();
+              cRecordings *DeletedRecordings = cRecordings::GetDeletedRecordingsWrite(recordingsStateKey); // write access is necessary for sorting!
+              if (DeletedRecordings) {
+                DeletedRecordings->Del(recording);
+                recordingsStateKey.Remove(true);
+
+                cRecordings::TouchUpdate();
+                cRecordings::Update();
+              } else {
+                Skins.Message(mtError, tr("Error while removing recording!"));
+              }
 #else
+              DeletedRecordings.Del(recording);
               Recordings.TouchUpdate();
               Recordings.Update();
 #endif
@@ -300,7 +325,18 @@ eOSState cMenuDeletedRecordings::Remove(void)
         if (recording) {
            if (recording->Remove()) {
               cOsdMenu::Del(Current());
+
+#if VDRVERSNUM >= 20301
+              cRecordings *DeletedRecordings = cRecordings::GetDeletedRecordingsWrite(recordingsStateKey); // write access is necessary for sorting!
+              if (DeletedRecordings) {
+                DeletedRecordings->Del(recording);
+                recordingsStateKey.Remove(true);
+              } else {
+                Skins.Message(mtError, tr("Error while removing recording!"));
+              }
+#else
               DeletedRecordings.Del(recording);
+#endif
               Display();
               if (!Count())
                  return osBack;
@@ -355,7 +391,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
 
 #include <vdr/plugin.h>
 
-static const char *VERSION        = "2.0.0";
+static const char *VERSION        = "2.3.1-pre1";
 static const char *DESCRIPTION    = "Undelete recordings";
 static const char *MAINMENUENTRY  = "Undelete recordings";
 
@@ -395,7 +431,15 @@ bool cPluginUndelete::Initialize(void)
 
 const char *cPluginUndelete::MainMenuEntry(void) 
 {
-  return (DeletedRecordings.Count()>0 && bMainMenu) ? tr(MAINMENUENTRY) : NULL;
+#if VDRVERSNUM >= 20301
+  if (bMainMenu) {
+    LOCK_DELETEDRECORDINGS_READ;
+    return DeletedRecordings->Count() > 0 ? tr(MAINMENUENTRY) : NULL;
+  }
+  return NULL;
+#else
+    return (DeletedRecordings.Count()>0 && bMainMenu) ? tr(MAINMENUENTRY) : NULL;
+#endif
 }
 
 bool cPluginUndelete::SetupParse(const char *Name, const char *Value) 
