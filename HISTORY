@@ -40,3 +40,7 @@ VDR Plugin 'undelete' Revision History
 2008-01-01: Version 0.4.6
 
 - Italian translations (Thanks to Gringo)
+
+2008-02-20: Version 0.4.6
+
+- Fixed compilation with vdr-1.5.15

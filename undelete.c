@@ -29,8 +29,8 @@ static bool UndeleteRecording(cRecording *Recording)
      while (access(NewName, F_OK) == 0) {
        // the new name already exists
        cString p = PrefixVideoFileName(NewName, '!');
-       if (p)
-	 NewName = p; 
+       if (*p)
+	 NewName = p;
      }
      isyslog("restoring deleted recording %s", Recording->FileName());
      result = RenameVideoFile(Recording->FileName(), NewName);
@@ -362,7 +362,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
 
 #include "i18n.h"
 
-static const char *VERSION        = "0.4.6";
+static const char *VERSION        = "0.4.7";
 static const char *DESCRIPTION    = "Undelete recordings";
 static const char *MAINMENUENTRY  = "Undelete recordings";
 
