@@ -10,5 +10,15 @@ See the file COPYING for license information.
 
 Description:
 
-  This plugin adds undelete menu to vdr.
+  Undelete menu for vdr.
 
+  Implements restoring and removing deleted recordings.
+
+
+Command-line options:
+
+  --nomenu       Don't show "undelete" entry in main menu
+                 (use setup menu to access plugin)
+
+  --menu         Show "undelete" entry in main menu
+                 (default)
