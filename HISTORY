@@ -29,3 +29,10 @@ VDR Plugin 'undelete' Revision History
 2007-03-11: Version 0.2.2
 
 - Plugin homepage changed
+
+2007-03-20: Version 0.4.5
+
+- Synced with vdr-1.4.5
+- Dropped support for vdr < 1.4.0
+- Fixed "too many" subdirectories problem
+- Fixed segfault when leaving menu

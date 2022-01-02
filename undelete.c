@@ -22,26 +22,19 @@
 static bool UndeleteRecording(cRecording *Recording)
 {
   bool result = true;
-  char *NewName = strdup(Recording->FileName());
+  cString NewName = Recording->FileName();
   char *ext = strrchr(NewName, '.');
   if (strcmp(ext, DELEXT) == 0) {
      strncpy(ext, RECEXT, strlen(ext));
      while (access(NewName, F_OK) == 0) {
        // the new name already exists
-#if VDRVERSNUM<10318
-       const char *p = PrefixVideoFileName(NewName, '!');
-#else
        cString p = PrefixVideoFileName(NewName, '!');
-#endif
-       if (p) { 
-	 free(NewName); 
-	 NewName = strdup(p); 
-       } 
+       if (p)
+	 NewName = p; 
      }
      isyslog("restoring deleted recording %s", Recording->FileName());
      result = RenameVideoFile(Recording->FileName(), NewName);
      }
-  free(NewName);
   return result;
 }
 
@@ -50,7 +43,7 @@ static bool UndeleteRecording(cRecording *Recording)
 // --- cMenuRecordingItem ----------------------------------------------------
 //
 
-// (copied from vdr 1.3.23 menu.c)
+// (copied from vdr 1.3.23...1.4.5 menu.c)
 class cMenuRecordingItem : public cOsdItem {
  private:
   char *fileName;
@@ -66,27 +59,11 @@ class cMenuRecordingItem : public cOsdItem {
 };
 
 
-#if VDRVERSNUM >= 10325
-
 //
 // --- cMenuRecording -------------------------------------------------------
 //
 
-# if VDRVERSNUM < 10342
-
-// (copied from vdr 1.3.31 menu.c)
-class cMenuRecording : public cOsdMenu {
-private:
-  const cRecording *recording;
-public:
-  cMenuRecording(const cRecording *Recording);
-  virtual void Display(void);
-  virtual eOSState ProcessKey(eKeys Key);
-};
-
-# else
-
-// (copied from vdr 1.3.42 menu.c)
+// (copied from vdr 1.3.42...1.4.5 menu.c)
 class cMenuRecording : public cOsdMenu {
 private:
   const cRecording *recording;
@@ -96,12 +73,12 @@ public:
   virtual void Display(void);
   virtual eOSState ProcessKey(eKeys Key);
 };
-# endif
 
 //
 // --- cMenuDeletedRecording -------------------------------------------------
 //
 
+// override help keys and kYellow action
 class cMenuDeletedRecording : public cMenuRecording {
 public:
   cMenuDeletedRecording(const cRecording *Recording);
@@ -132,50 +109,41 @@ eOSState cMenuDeletedRecording::ProcessKey(eKeys Key)
   return state;
 }
 
-#endif
 
 //
 // --- cMenuDeletedRecordings ------------------------------------------------
 //
 
-// Almost direct copy of cMenuRecordings from vdr 1.3.23
+// Almost direct copy of cMenuRecordings from vdr 1.4.5
 
 // Plugin main menu entry must must be type of cMenuSetupPage ...
 
 //class cMenuDeletedRecordings : public /*cMenuRecordings*/ cOsdMenu {
 class cMenuDeletedRecordings : public /*cMenuRecordings*/ cMenuSetupPage {
-
-  private:
+ private:
     char *base;
     int level;
-#if VDRVERSNUM < 10342
-    static cRecordings *deletedRecordings;
-#else
-    static cLockFile *LockFile;
-    static cThreadLock *DeletedRecordingsLock;
-#endif
-
+    int recordingsState;
+    int helpKeys;
     void SetHelpKeys(void);
-    cRecording *GetRecording(cMenuRecordingItem *Item);
+    void Set(bool Refresh = false);
     bool Open(bool OpenSubMenus = false);
+    //eOSState Play(void);
+    //eOSState Rewind(void);
     eOSState Remove(void);
     eOSState Undelete(void);
-    eOSState Summary(void);
-  public:
-    cMenuDeletedRecordings(const char *Base=NULL, int Level=0, 
-			   bool OpenSubMenus=true);
+    //eOSState Delete(void);
+    eOSState Info(void);
+    //eOSState Commands(eKeys Key = kNone);
+ protected:
+    cRecording *GetRecording(cMenuRecordingItem *Item);
+ public:
+    cMenuDeletedRecordings(const char *Base = NULL, int Level = 0, bool OpenSubMenus = false);
     ~cMenuDeletedRecordings();
     virtual eOSState ProcessKey(eKeys Key);
 
     virtual void Store(void) {}
 };
-
-#if VDRVERSNUM < 10342
-cRecordings *cMenuDeletedRecordings::deletedRecordings = NULL;
-#else
-cLockFile   *cMenuDeletedRecordings::LockFile = NULL;
-cThreadLock *cMenuDeletedRecordings::DeletedRecordingsLock = NULL;
-#endif
 
 cMenuDeletedRecordings::cMenuDeletedRecordings(const char *Base, int Level, bool OpenSubMenus) //:
   //cOsdMenu(Base ? Base : "Deleted recordings", 6, 6, 6)
@@ -184,75 +152,23 @@ cMenuDeletedRecordings::cMenuDeletedRecordings(const char *Base, int Level, bool
   SetCols(6,6,6);
 
   base = Base ? strdup(Base) : NULL;
-  level = Level;
-
-#if VDRVERSNUM < 10342
-  if(!deletedRecordings) {
-    deletedRecordings = new cRecordings(true);      
-    deletedRecordings->Load();
-    deletedRecordings->Sort();
-  }
-#else
-  if(!LockFile) {
-    assert(!base);
-    assert(!DeletedRecordingsLock);
-    // Make sure only one instance of VDR does this:
-    LockFile = new cLockFile(VideoDirectory);
-    if (LockFile->Lock(3)) {
-    } else {
-      // error, should not continue ...
-    }
-    DeletedRecordingsLock = new cThreadLock(&DeletedRecordings);
-  }
-#endif
-
-  char *LastItemText = NULL;
-  cMenuRecordingItem *LastItem = NULL;
-#if VDRVERSNUM < 10342
-  for (cRecording *recording = deletedRecordings->First(); recording; 
-       recording = deletedRecordings->Next(recording)) {
-#else
-  for (cRecording *recording = DeletedRecordings.First(); recording; 
-       recording = DeletedRecordings.Next(recording)) {
-#endif
-    if (!Base || (strstr(recording->Name(), Base) == recording->Name() && recording->Name()[strlen(Base)] == '~')) {
-      cMenuRecordingItem *Item = new cMenuRecordingItem(recording, Level);
-      if (*Item->Text() && (!LastItem || strcmp(Item->Text(), LastItemText) != 0)) {
-	Add(Item);
-	LastItem = Item;
-	free(LastItemText);
-	LastItemText = strdup(LastItem->Text()); // must use a copy because of the counters!
-      }
-      else
-	delete Item;
-      if (LastItem) {
-	if (LastItem->IsDirectory())
-	  LastItem->IncrementCounter(recording->IsNew());
-     }
-   }
-  }
-  free(LastItemText);
-  SetCurrent(First());
-  SetHelpKeys();
+  level = Setup.RecordingDirs ? Level : -1;
+  DeletedRecordings.StateChanged(recordingsState); // just to get the current state
+  helpKeys = -1;
+  Display(); // this keeps the higher level menus from showing up briefly when pressing 'Back' during replay
+  Set();
+ if (Current() < 0)
+   SetCurrent(First());
+ //else if (OpenSubMenus && cReplayControl::LastReplayed() && Open(true))
+ //  return;
+ Display();
+ SetHelpKeys();
 }
 
 cMenuDeletedRecordings::~cMenuDeletedRecordings()
 {
-#if VDRVERSNUM < 10342
-  if(!base && deletedRecordings) {
-    delete deletedRecordings;
-    deletedRecordings = NULL;
-  }
-#else
-  if(!base && (LockFile || DeletedRecordingsLock)) {
-    delete LockFile;
-    LockFile = NULL;
-    delete DeletedRecordingsLock;
-    DeletedRecordingsLock = NULL;
-  }
-#endif
-  if(base)
-    free(base);
+  free(base);
+  helpKeys = -1;
 }
 
 void cMenuDeletedRecordings::SetHelpKeys(void)
@@ -265,11 +181,7 @@ void cMenuDeletedRecordings::SetHelpKeys(void)
      else {
         NewHelpKeys = 2;
         cRecording *recording = GetRecording(ri);
-#if VDRVERSNUM < 10325
-        if (recording && recording->Summary())
-#else
         if (recording && recording->Info()->Title())
-#endif
            NewHelpKeys = 3;
         }
      }
@@ -282,13 +194,38 @@ void cMenuDeletedRecordings::SetHelpKeys(void)
        }
 }
 
+void cMenuDeletedRecordings::Set(bool Refresh)
+{
+  cMenuRecordingItem *LastItem = NULL;
+  char *LastItemText = NULL;
+  cThreadLock RecordingsLock(&DeletedRecordings);
+  Clear();
+  DeletedRecordings.Sort();
+  for (cRecording *recording = DeletedRecordings.First(); recording; recording = DeletedRecordings.Next(recording)) {
+      if (!base || (strstr(recording->Name(), base) == recording->Name() && recording->Name()[strlen(base)] == '~')) {
+         cMenuRecordingItem *Item = new cMenuRecordingItem(recording, level);
+         if (*Item->Text() && (!LastItem || strcmp(Item->Text(), LastItemText) != 0)) {
+            Add(Item);
+            LastItem = Item;
+            free(LastItemText);
+            LastItemText = strdup(LastItem->Text()); // must use a copy because of the counters!
+            }
+         else
+            delete Item;
+         if (LastItem) {
+            if (LastItem->IsDirectory())
+               LastItem->IncrementCounter(recording->IsNew());
+            }
+         }
+      }
+  free(LastItemText);
+  if (Refresh)
+     Display();
+}
+
 cRecording *cMenuDeletedRecordings::GetRecording(cMenuRecordingItem *Item)
 {
-#if VDRVERSNUM < 10342
-  cRecording *recording = deletedRecordings->GetByName(Item->FileName());
-#else
   cRecording *recording = DeletedRecordings.GetByName(Item->FileName());
-#endif
   if (!recording)
      Skins.Message(mtError, tr("Error while accessing recording!"));
   return recording;
@@ -311,20 +248,15 @@ bool cMenuDeletedRecordings::Open(bool OpenSubMenus)
   return false;
 }
 
-eOSState cMenuDeletedRecordings::Summary(void)
+eOSState cMenuDeletedRecordings::Info(void)
 {
   if (HasSubMenu() || Count() == 0)
      return osContinue;
   cMenuRecordingItem *ri = (cMenuRecordingItem *)Get(Current());
   if (ri && !ri->IsDirectory()) {
      cRecording *recording = GetRecording(ri);
-#if VDRVERSNUM < 10325
-     if (recording && recording->Summary() && *recording->Summary())
-        return AddSubMenu(new cMenuText(tr("Summary"), recording->Summary()));
-#else
      if (recording && recording->Info()->Title())
-        return AddSubMenu(new cMenuRecording(recording));
-#endif
+        return AddSubMenu(new cMenuRecording(recording, true));
      }
   return osContinue;
 }
@@ -347,21 +279,9 @@ eOSState cMenuDeletedRecordings::Undelete(void)
         if (recording) {
            if (UndeleteRecording(recording)) {
               cOsdMenu::Del(Current());
-#if VDRVERSNUM < 10342
-              deletedRecordings->Del(recording);
-#else
               DeletedRecordings.Del(recording);
-#warning test:
-              //DeletedRecordings.Del(recording,false);
-	      //Recordings.Add(recording);
-	      //no update, just TouchUpdate ?
-#endif
-#if VDRVERSNUM < 10333
-              Recordings.TriggerUpdate();
-#else
               Recordings.TouchUpdate();
               Recordings.Update();
-#endif
               Display();
               if (!Count())
                  return osBack;
@@ -385,11 +305,7 @@ eOSState cMenuDeletedRecordings::Remove(void)
         if (recording) {
            if (recording->Remove()) {
               cOsdMenu::Del(Current());
-#if VDRVERSNUM < 10342
-              deletedRecordings->Del(recording);
-#else
               DeletedRecordings.Del(recording);
-#endif
               Display();
               if (!Count())
                  return osBack;
@@ -419,7 +335,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
                      }
        case kRed:    return Undelete();
        case kYellow: return Remove();
-       case kBlue:   return Summary();
+       case kBlue:   return Info();
        default: break;
        }
      }
@@ -446,7 +362,7 @@ eOSState cMenuDeletedRecordings::ProcessKey(eKeys Key)
 
 #include "i18n.h"
 
-static const char *VERSION        = "0.2.2";
+static const char *VERSION        = "0.4.5";
 static const char *DESCRIPTION    = "Undelete recordings";
 static const char *MAINMENUENTRY  = "Undelete recordings";
 
@@ -487,12 +403,7 @@ bool cPluginUndelete::Initialize(void)
 
 const char *cPluginUndelete::MainMenuEntry(void) 
 {
-#if VDRVERSNUM >= 10342
-  int Count = DeletedRecordings.Count();
-  if(!Count)
-    return NULL;
-#endif
-  return bMainMenu ? tr(MAINMENUENTRY) : NULL;
+  return (DeletedRecordings.Count()>0 && bMainMenu) ? tr(MAINMENUENTRY) : NULL;
 }
 
 bool cPluginUndelete::SetupParse(const char *Name, const char *Value) 
