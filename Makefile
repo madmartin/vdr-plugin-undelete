@@ -29,12 +29,18 @@ TMPDIR = /tmp
 -include $(VDRDIR)/Make.config
 
 ### The version number of VDR (taken from VDR's "config.h"):
-
+#
 #VDRVERSION = $(shell grep 'define VDRVERSION ' $(VDRDIR)/config.h | awk '{ print $$3 }' | sed -e 's/"//g')
-
+#
 ### The version number of VDR's plugin API (taken from VDR's "config.h"):
+#
+#APIVERSION = $(shell sed -ne '/define APIVERSION/ { s/^.*"\(.*\)".*$$/\1/; p }' $(VDRDIR)/config.h)
 
-APIVERSION = $(shell sed -ne '/define APIVERSION/ { s/^.*"\(.*\)".*$$/\1/; p }' $(VDRDIR)/config.h)
+VDRVERSION = $(shell grep 'define VDRVERSION ' $(VDRDIR)/config.h | awk '{ print $$3 }' | sed -e 's/"//g')
+APIVERSION = $(shell grep 'define APIVERSION ' $(VDRDIR)/config.h | awk '{ print $$3 }' | sed -e 's/"//g')
+ifeq ($(strip $(APIVERSION)),)
+   APIVERSION = $(VDRVERSION)
+endif
 
 ### The name of the distribution archive:
 
